@@ -1,39 +1,29 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, GripHorizontal } from "lucide-react";
-import { N, type Face } from "@/lib/cube/orient.ts";
+import { N } from "@/lib/cube/orient.ts";
 import { FACE_NAME } from "@/lib/cube/palette.ts";
 import { paintBoard } from "@/lib/cube/pieces.ts";
-import { faceGrid, type Axis, type Cubie } from "@/lib/cube/state.ts";
+import { faceLayout, type Axis, type Cubie } from "@/lib/cube/state.ts";
 import {
-  makeFaceView,
   visualColMove,
   visualColTurns,
   visualRowMove,
   visualRowTurns,
-  type Vec3,
+  type FaceView,
 } from "@/lib/cube/view.ts";
 
 type Props = {
   cubies: Cubie[];
-  face: Face;
-  camRight: Vec3;
-  camUp: Vec3;
+  /** The face the camera is looking at, oriented as it appears on screen. */
+  view: FaceView;
   boardPx: number;
   disabled?: boolean;
   floating?: boolean;
   onTurn: (axis: Axis, layer: number, turns: number) => void;
 };
 
-export function FaceGizmo({
-  cubies,
-  face,
-  camRight,
-  camUp,
-  boardPx,
-  disabled,
-  floating,
-  onTurn,
-}: Props) {
+export function FaceGizmo({ cubies, view, boardPx, disabled, floating, onTurn }: Props) {
+  const face = view.face;
   const ref = useRef<HTMLCanvasElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const swipe = useRef<{ x: number; y: number } | null>(null);
@@ -42,7 +32,6 @@ export function FaceGizmo({
   const [dragging, setDragging] = useState(false);
   const cell = Math.max(12, Math.floor(boardPx / N));
   const px = cell * N;
-  const view = useMemo(() => makeFaceView(face, camRight, camUp), [face, camRight, camUp]);
 
   useEffect(() => {
     const canvas = ref.current;
@@ -51,7 +40,8 @@ export function FaceGizmo({
     canvas.height = px;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    paintBoard(ctx, faceGrid(cubies, face), px, { view });
+    const { grid, turns } = faceLayout(cubies, face);
+    paintBoard(ctx, grid, px, { view, turns });
   }, [cubies, face, px, view]);
 
   useEffect(() => {
@@ -80,12 +70,12 @@ export function FaceGizmo({
   const fireRow = (rowFromTop: number, dir: 1 | -1) => {
     if (disabled) return;
     const { axis, layer } = visualRowMove(view, rowFromTop);
-    onTurn(axis, layer, visualRowTurns(view, rowFromTop, dir, camRight));
+    onTurn(axis, layer, visualRowTurns(view, rowFromTop, dir));
   };
   const fireCol = (colFromLeft: number, dir: 1 | -1) => {
     if (disabled) return;
     const { axis, layer } = visualColMove(view, colFromLeft);
-    onTurn(axis, layer, visualColTurns(view, colFromLeft, dir, camUp));
+    onTurn(axis, layer, visualColTurns(view, colFromLeft, dir));
   };
 
   const arrow = (dir: "up" | "down" | "left" | "right", i: number) => {
@@ -168,10 +158,7 @@ export function FaceGizmo({
     setDragging(false);
   };
 
-  const style =
-    floating && pos
-      ? { left: pos.x, top: pos.y, right: "auto" as const }
-      : undefined;
+  const style = floating && pos ? { left: pos.x, top: pos.y, right: "auto" as const } : undefined;
 
   return (
     <div
@@ -206,7 +193,9 @@ export function FaceGizmo({
         <span />
         <div className="gizmo-edge">{Array.from({ length: N }, (_, i) => arrow("up", i))}</div>
         <span />
-        <div className="gizmo-edge col">{Array.from({ length: N }, (_, i) => arrow("left", i))}</div>
+        <div className="gizmo-edge col">
+          {Array.from({ length: N }, (_, i) => arrow("left", i))}
+        </div>
         <canvas
           ref={ref}
           width={px}
@@ -219,13 +208,17 @@ export function FaceGizmo({
             swipe.current = null;
           }}
         />
-        <div className="gizmo-edge col">{Array.from({ length: N }, (_, i) => arrow("right", i))}</div>
+        <div className="gizmo-edge col">
+          {Array.from({ length: N }, (_, i) => arrow("right", i))}
+        </div>
         <span />
         <div className="gizmo-edge">{Array.from({ length: N }, (_, i) => arrow("down", i))}</div>
         <span />
       </div>
       <p className="gizmo-hint">
-        {floating ? "Drag the handle · swipe a row or column" : "Swipe a row or column, or tap an arrow"}
+        {floating
+          ? "Drag the handle · swipe a row or column"
+          : "Swipe a row or column, or tap an arrow"}
       </p>
     </div>
   );

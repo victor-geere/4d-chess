@@ -27,7 +27,7 @@ export const FACE_ROT: Record<Face, 0 | 1 | 2 | 3> = {
 };
 
 export function rotDir(d: Dir, k: number): Dir {
-  return DIRS[((DIRS.indexOf(d) + k) % 4 + 4) % 4]!;
+  return DIRS[(((DIRS.indexOf(d) + k) % 4) + 4) % 4]!;
 }
 
 /** Chess compass sitting on a physical edge after FACE_ROT. */
@@ -120,4 +120,29 @@ export const OUT_FACE: Record<OutDir, Face> = {
   "-y": "D",
   "+x": "R",
   "-x": "L",
+};
+
+export function negDir(d: OutDir): OutDir {
+  return (d[0] === "+" ? `-${d[1]}` : `+${d[1]}`) as OutDir;
+}
+
+export function outDirVec(d: OutDir): [number, number, number] {
+  const s = d[0] === "+" ? 1 : -1;
+  if (d[1] === "x") return [s, 0, 0];
+  if (d[1] === "y") return [0, s, 0];
+  return [0, 0, s];
+}
+
+/**
+ * World directions of a face's local u (east) and v (north) axes at start.
+ * Every face is right-handed: u × v = FACE_OUT, so seen from outside the cube
+ * u runs right and v runs up. Matches faceUvToCubie / cubieToUv.
+ */
+export const FACE_FRAME: Record<Face, { u: OutDir; v: OutDir }> = {
+  F: { u: "+x", v: "+y" },
+  B: { u: "-x", v: "+y" },
+  R: { u: "-z", v: "+y" },
+  L: { u: "+z", v: "+y" },
+  U: { u: "+x", v: "-z" },
+  D: { u: "+x", v: "+z" },
 };

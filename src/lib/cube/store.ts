@@ -1,21 +1,21 @@
 import { create } from "zustand";
 import type { Face } from "./orient.ts";
+import { initialCubies, rotateSlice, type Axis, type Cubie } from "./state.ts";
 import {
-  initialCubies,
-  rotateSlice,
-  type Axis,
-  type Cubie,
-} from "./state.ts";
-import { FRONT_CAM_RIGHT, FRONT_CAM_UP, viewKey, type Vec3 } from "./view.ts";
+  FRONT_CAM_RIGHT,
+  FRONT_CAM_UP,
+  faceViewKey,
+  makeFaceView,
+  type FaceView,
+  type Vec3,
+} from "./view.ts";
 
 type CubeStore = {
   cubies: Cubie[];
-  facing: Face;
-  camRight: Vec3;
-  camUp: Vec3;
-  viewKey: string;
+  /** The face nearest the camera and how it sits on screen. */
+  view: FaceView;
   busy: boolean;
-  setView: (face: Face, right: Vec3, up: Vec3) => void;
+  setView: (face: Face, camRight: Vec3, camUp: Vec3) => void;
   setBusy: (b: boolean) => void;
   turn: (axis: Axis, layer: number, turns: number) => void;
   reset: () => void;
@@ -23,15 +23,12 @@ type CubeStore = {
 
 export const useCube = create<CubeStore>((set, get) => ({
   cubies: initialCubies(),
-  facing: "F",
-  camRight: FRONT_CAM_RIGHT,
-  camUp: FRONT_CAM_UP,
-  viewKey: viewKey("F", FRONT_CAM_RIGHT, FRONT_CAM_UP),
+  view: makeFaceView("F", FRONT_CAM_RIGHT, FRONT_CAM_UP),
   busy: false,
-  setView: (facing, camRight, camUp) => {
-    const key = viewKey(facing, camRight, camUp);
-    if (get().viewKey === key) return;
-    set({ facing, camRight, camUp, viewKey: key });
+  setView: (face, camRight, camUp) => {
+    const view = makeFaceView(face, camRight, camUp);
+    if (faceViewKey(get().view) === faceViewKey(view)) return;
+    set({ view });
   },
   setBusy: (busy) => set({ busy }),
   turn: (axis, layer, turns) => {
