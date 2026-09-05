@@ -13,9 +13,7 @@ type Handle = {
 
 export function CubeApp() {
   const cubies = useCube((s) => s.cubies);
-  const facing = useCube((s) => s.facing);
-  const camRight = useCube((s) => s.camRight);
-  const camUp = useCube((s) => s.camUp);
+  const view = useCube((s) => s.view);
   const busy = useCube((s) => s.busy);
   const setView = useCube((s) => s.setView);
   const handle = useRef<Handle | null>(null);
@@ -63,8 +61,8 @@ export function CubeApp() {
         <div>
           <h1>Chess Cube</h1>
           <p className="lede">
-            Drag to orbit. On desktop, drag the gizmo anywhere. Arrows or a
-            swipe turn a row or column 90°.
+            Drag to orbit. On desktop, drag the gizmo anywhere. Arrows or a swipe turn a row or
+            column 90°.
           </p>
         </div>
         <Button
@@ -84,9 +82,7 @@ export function CubeApp() {
         </div>
         <FaceGizmo
           cubies={cubies}
-          face={facing}
-          camRight={camRight}
-          camUp={camUp}
+          view={view}
           boardPx={boardPx}
           disabled={busy}
           floating={desktop}

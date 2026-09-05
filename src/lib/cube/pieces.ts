@@ -107,21 +107,30 @@ export function drawPiece(ctx: CanvasRenderingContext2D, piece: Piece, size: num
   ctx.restore();
 }
 
+/**
+ * Paint a face. Without `view` the board is drawn in face coordinates (u
+ * right, v up) — this is what gets baked onto the 3D stickers. With `view` it
+ * is drawn as the camera sees the face; `turns[v][u]` additionally spins each
+ * sticker the way it currently sits on the cube (see stickerTurn) so the
+ * gizmo is a faithful copy of the 3D face.
+ */
 export function paintBoard(
   ctx: CanvasRenderingContext2D,
   grid: (Sticker | null)[][],
   size: number,
-  opts?: { view?: FaceView; glass?: boolean },
+  opts?: { view?: FaceView; glass?: boolean; turns?: number[][] },
 ) {
   const cell = size / N;
   const view = opts?.view;
   const glass = opts?.glass ?? false;
-  const rot = view ? stickerRot(view) : 0;
+  const turns = opts?.turns;
+  const viewRot = view ? stickerRot(view) : 0;
   for (let row = 0; row < N; row++) {
     for (let col = 0; col < N; col++) {
       const uv = view ? uvAt(view, col, row) : { u: col, v: N - 1 - row };
       const st = grid[uv.v]![uv.u];
       if (!st) continue;
+      const rot = viewRot + ((turns?.[uv.v]?.[uv.u] ?? 0) * Math.PI) / 2;
       ctx.save();
       ctx.translate(col * cell, row * cell);
       if (rot) {

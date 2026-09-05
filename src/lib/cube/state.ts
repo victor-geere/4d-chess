@@ -1,7 +1,10 @@
 import {
+  FACE_FRAME,
   FACE_OUT,
   FACES,
   N,
+  OUT_FACE,
+  negDir,
   type Face,
   type OutDir,
   faceUvToCubie,
@@ -22,8 +25,6 @@ export type Cubie = {
   /** Stickers keyed by *local* face, set at start and never remapped. */
   stickers: Partial<Record<OutDir, Sticker>>;
 };
-
-const LOCAL: OutDir[] = ["+x", "+y", "+z"];
 
 export function initialCubies(): Cubie[] {
   const map = new Map<string, Cubie>();
@@ -116,17 +117,34 @@ export function worldDir(c: Cubie, local: OutDir): OutDir {
   return (w[0] === "+" ? `-${w[1]}` : `+${w[1]}`) as OutDir;
 }
 
-export function stickerFacing(c: Cubie, world: OutDir): Sticker | undefined {
-  for (const loc of LOCAL) {
-    if (c.stickers[loc] && worldDir(c, loc) === world) return c.stickers[loc];
-    const nloc = (`-${loc[1]}`) as OutDir;
-    if (c.stickers[nloc] && worldDir(c, nloc) === world) return c.stickers[nloc];
-  }
-  // also + already covered; check all keys
+/** Local side of the cubie that currently points in `world`, if it carries a sticker. */
+export function sideFacing(c: Cubie, world: OutDir): OutDir | undefined {
   for (const loc of Object.keys(c.stickers) as OutDir[]) {
-    if (worldDir(c, loc) === world) return c.stickers[loc];
+    if (worldDir(c, loc) === world) return loc;
   }
   return undefined;
+}
+
+export function stickerFacing(c: Cubie, world: OutDir): Sticker | undefined {
+  const loc = sideFacing(c, world);
+  return loc === undefined ? undefined : c.stickers[loc];
+}
+
+export type QuarterTurn = 0 | 1 | 2 | 3;
+
+/**
+ * How far the sticker on local side `local` of cubie `c` is rotated, in
+ * clockwise quarter turns seen from outside, relative to the frame of the
+ * face it currently shows on. The 3D texture is painted upright in the
+ * sticker's own (u, v) frame, so this is exactly how it looks on the cube.
+ */
+export function stickerTurn(c: Cubie, local: OutDir, face: Face): QuarterTurn {
+  const stickerU = worldDir(c, FACE_FRAME[OUT_FACE[local]].u);
+  const { u, v } = FACE_FRAME[face];
+  if (stickerU === u) return 0;
+  if (stickerU === negDir(v)) return 1;
+  if (stickerU === negDir(u)) return 2;
+  return 3;
 }
 
 export function cubieToUv(face: Face, x: number, y: number, z: number) {
@@ -146,19 +164,42 @@ export function cubieToUv(face: Face, x: number, y: number, z: number) {
   }
 }
 
-export function faceGrid(cubies: Cubie[], face: Face): (Sticker | null)[][] {
+export type FaceLayout = {
+  /** grid[v][u]: sticker showing at face-local (u, v). */
+  grid: (Sticker | null)[][];
+  /** turns[v][u]: how that sticker is rotated on the cube (see stickerTurn). */
+  turns: QuarterTurn[][];
+};
+
+/** What a face looks like right now: which sticker is where and how it is turned. */
+export function faceLayout(cubies: Cubie[], face: Face): FaceLayout {
   const grid: (Sticker | null)[][] = Array.from({ length: N }, () =>
     Array<Sticker | null>(N).fill(null),
   );
+  const turns: QuarterTurn[][] = Array.from({ length: N }, () => Array<QuarterTurn>(N).fill(0));
   const out = FACE_OUT[face];
   for (const c of cubies) {
-    const st = stickerFacing(c, out);
-    if (!st) continue;
+    if (c[faceAxisOf(face)] !== faceLayerOf(face)) continue;
+    const loc = sideFacing(c, out);
+    if (loc === undefined) continue;
     const { u, v } = cubieToUv(face, c.x, c.y, c.z);
     if (u < 0 || u >= N || v < 0 || v >= N) continue;
-    grid[v]![u] = st;
+    grid[v]![u] = c.stickers[loc]!;
+    turns[v]![u] = stickerTurn(c, loc, face);
   }
-  return grid;
+  return { grid, turns };
+}
+
+function faceAxisOf(face: Face): Axis {
+  return FACE_OUT[face][1] as Axis;
+}
+
+function faceLayerOf(face: Face): number {
+  return FACE_OUT[face][0] === "+" ? N - 1 : 0;
+}
+
+export function faceGrid(cubies: Cubie[], face: Face): (Sticker | null)[][] {
+  return faceLayout(cubies, face).grid;
 }
 
 export function rowMove(face: Face, rowFromTop: number): { axis: Axis; layer: number } {

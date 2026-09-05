@@ -102,6 +102,8 @@ type CubeProbe = CubeHandle & {
   busy: () => boolean;
   rowTurn: (rowFromTop: number, dir: 1 | -1) => void;
   colTurn: (colFromLeft: number, dir: 1 | -1) => void;
+  /** Park the camera at the given orbit angles (test hook). */
+  orbit: (alpha: number, beta: number) => void;
 };
 
 declare global {
@@ -134,6 +136,11 @@ export function CubeScene({
       adaptToDeviceRatio: true,
     });
     const scene = new Scene(engine);
+    // The cube maths (orient/view/state) is right-handed: looking at the
+    // front face from +z, +x runs to the right and +y up. Babylon defaults
+    // to left-handed, which mirrors every face, so opt in before creating
+    // the camera and materials (both read this at construction time).
+    scene.useRightHandedSystem = true;
     scene.clearColor = hexToColor4(TEAL);
     scene.skipPointerMovePicking = true;
     scene.autoClear = true;
@@ -195,6 +202,11 @@ export function CubeScene({
     let lastRight: Vec3 = [1, 0, 0];
     let lastUp: Vec3 = [0, 1, 0];
 
+    // Pose of each sticker plane on its cubie. A Babylon plane is built facing
+    // local -z, so the planes are created BACKSIDE (winding and normals
+    // flipped) which makes local +z the visible, lit side; each pose then
+    // carries local +z to the outward normal, local +x to the face's u axis
+    // and local +y to its v axis (see FACE_FRAME in orient.ts).
     const localPose: Record<OutDir, { p: Vector3; rx: number; ry: number; rz: number }> = {
       "+z": { p: new Vector3(0, 0, SIZE / 2 + 0.003), rx: 0, ry: 0, rz: 0 },
       "-z": { p: new Vector3(0, 0, -SIZE / 2 - 0.003), rx: 0, ry: Math.PI, rz: 0 },
@@ -266,7 +278,7 @@ export function CubeScene({
         const pose = localPose[local]!;
         const plane = MeshBuilder.CreatePlane(
           `${c.id}${local}`,
-          { size: SIZE, sideOrientation: Mesh.FRONTSIDE },
+          { size: SIZE, sideOrientation: Mesh.BACKSIDE },
           scene,
         );
         plane.position.copyFrom(pose.p);
@@ -293,7 +305,7 @@ export function CubeScene({
 
     function applyTurn(axis: Axis, layer: number, turns: number) {
       if (busy || !turns) return;
-      let t = ((turns % 4) + 4) % 4;
+      const t = ((turns % 4) + 4) % 4;
       if (t === 0) return;
       const signed = turns < 0 || t === 3 ? (t === 3 ? -1 : t) : t;
       const angle = (signed * Math.PI) / 2;
@@ -355,15 +367,19 @@ export function CubeScene({
       reset,
       facing: () => lastFace,
       busy: () => busy,
+      orbit: (alpha, beta) => {
+        camera.alpha = alpha;
+        camera.beta = beta;
+      },
       rowTurn: (rowFromTop, dir) => {
         const view = makeFaceView(lastFace, lastRight, lastUp);
         const { axis, layer } = visualRowMove(view, rowFromTop);
-        applyTurn(axis, layer, visualRowTurns(view, rowFromTop, dir, lastRight));
+        applyTurn(axis, layer, visualRowTurns(view, rowFromTop, dir));
       },
       colTurn: (colFromLeft, dir) => {
         const view = makeFaceView(lastFace, lastRight, lastUp);
         const { axis, layer } = visualColMove(view, colFromLeft);
-        applyTurn(axis, layer, visualColTurns(view, colFromLeft, dir, lastUp));
+        applyTurn(axis, layer, visualColTurns(view, colFromLeft, dir));
       },
     };
     window.__cube = handle;
@@ -407,11 +423,5 @@ export function CubeScene({
     };
   }, []);
 
-  return (
-    <canvas
-      ref={canvasRef}
-      className="cube-canvas"
-      style={{ touchAction: "none" }}
-    />
-  );
+  return <canvas ref={canvasRef} className="cube-canvas" style={{ touchAction: "none" }} />;
 }
